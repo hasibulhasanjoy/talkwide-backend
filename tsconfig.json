@@ -4,11 +4,10 @@
     "outDir": "dist",
 
     "target": "ESNext",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESnext",
+    "moduleResolution": "node",
     "esModuleInterop": true,
     "resolveJsonModule": true,
-
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "noImplicitAny": true,
@@ -21,6 +20,9 @@
     "noEmitOnError": true,
     "skipLibCheck": true,
     "sourceMap": true
+  },
+  "ts-node": {
+    "esm": true
   },
   "include": ["src"]
 }
