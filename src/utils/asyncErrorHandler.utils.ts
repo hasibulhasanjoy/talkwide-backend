@@ -1,6 +1,6 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
 
-type asyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
+type asyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<void | Response>;
 
 type wrapperFunction = (requestHandler: asyncHandler) => RequestHandler;
 
