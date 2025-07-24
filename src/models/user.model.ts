@@ -1,3 +1,4 @@
+import jwt, { JwtPayload, SignOptions } from "jsonwebtoken";
 import { Document, model, Schema, Types } from "mongoose";
 
 export interface IUser extends Document {
@@ -12,6 +13,7 @@ export interface IUser extends Document {
   isBanned: boolean;
   lastLogin?: Date | null;
   karma: number;
+  generateAuthToken: () => string;
 
   posts: Types.ObjectId[];
   comments: Types.ObjectId[];
@@ -49,6 +51,19 @@ const UserSchema = new Schema<IUser>(
   },
   { timestamps: true }
 );
+
+UserSchema.methods.generateAuthToken = function (this: IUser): string {
+  const secret = process.env.JWT_SECRET_KEY as string;
+  const expiresIn = process.env.JWT_EXPIRES_IN as `${number}${"d" | "h" | "m"}`;
+  const payload: JwtPayload = { id: (this._id as Types.ObjectId).toString() };
+  const option: SignOptions = {
+    expiresIn,
+  };
+
+  const token = jwt.sign(payload, secret, option);
+
+  return token;
+};
 
 const User = model<IUser>("User", UserSchema);
 export default User;
