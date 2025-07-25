@@ -1,31 +1,9 @@
 import jwt, { JwtPayload, SignOptions } from "jsonwebtoken";
-import { Document, model, Schema, Types } from "mongoose";
+import { model, Schema } from "mongoose";
 
-export interface IUser extends Document {
-  username: string;
-  displayName: string;
-  email: string;
-  emailVerifiedAt?: Date | null;
-  password: string;
-  avatarUrl?: string | null;
-  bio?: string | null;
-  role: "user" | "admin" | "moderator";
-  isBanned: boolean;
-  lastLogin?: Date | null;
-  karma: number;
-  generateAuthToken: () => string;
+import IUser from "../interfaces/user.interface.js";
 
-  posts: Types.ObjectId[];
-  comments: Types.ObjectId[];
-  savedPosts: Types.ObjectId[];
-  upvotedPosts: Types.ObjectId[];
-  downVotedPosts: Types.ObjectId[];
-  upvotedComments: Types.ObjectId[];
-  downVotedComments: Types.ObjectId[];
-
-  createdAt: Date;
-  updatedAt: Date;
-}
+const { ObjectId } = Schema.Types;
 
 const UserSchema = new Schema<IUser>(
   {
@@ -41,13 +19,13 @@ const UserSchema = new Schema<IUser>(
     lastLogin: { type: Date },
     karma: { type: Number, default: 0 },
 
-    posts: [{ type: Schema.Types.ObjectId, ref: "Post" }],
-    comments: [{ type: Schema.Types.ObjectId, ref: "Comment" }],
-    savedPosts: [{ type: Schema.Types.ObjectId, ref: "Post" }],
-    upvotedPosts: [{ type: Schema.Types.ObjectId, ref: "Post" }],
-    downVotedPosts: [{ type: Schema.Types.ObjectId, ref: "Post" }],
-    upvotedComments: [{ type: Schema.Types.ObjectId, ref: "Comment" }],
-    downVotedComments: [{ type: Schema.Types.ObjectId, ref: "Comment" }],
+    posts: [{ type: ObjectId, ref: "Post" }],
+    comments: [{ type: ObjectId, ref: "Comment" }],
+    savedPosts: [{ type: ObjectId, ref: "Post" }],
+    upvotedPosts: [{ type: ObjectId, ref: "Post" }],
+    downVotedPosts: [{ type: ObjectId, ref: "Post" }],
+    upvotedComments: [{ type: ObjectId, ref: "Comment" }],
+    downVotedComments: [{ type: ObjectId, ref: "Comment" }],
   },
   { timestamps: true }
 );
@@ -55,7 +33,7 @@ const UserSchema = new Schema<IUser>(
 UserSchema.methods.generateAuthToken = function (this: IUser): string {
   const secret = process.env.JWT_SECRET_KEY as string;
   const expiresIn = process.env.JWT_EXPIRES_IN as `${number}${"d" | "h" | "m"}`;
-  const payload: JwtPayload = { id: (this._id as Types.ObjectId).toString() };
+  const payload: JwtPayload = { id: this._id.toString() };
   const option: SignOptions = {
     expiresIn,
   };

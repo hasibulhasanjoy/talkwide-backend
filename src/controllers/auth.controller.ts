@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 
-import { IUser } from "../models/user.model.js";
+import IUser from "../interfaces/user.interface.js";
 import User from "../models/user.model.js";
 import AppError from "../utils/appError.class.js";
 import asyncErrorHandler from "../utils/asyncErrorHandler.utils.js";
