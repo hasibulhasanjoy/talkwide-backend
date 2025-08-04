@@ -4,9 +4,9 @@ const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$
 
 export const signUpSchema = z
   .object({
-    username: z.string().min(3, "username must be at least 3 characters"),
-    displayName: z.string("display name is required"),
-    email: z.email("invalid email address"),
+    username: z.string().min(3, "username must be at least 3 characters").trim(),
+    displayName: z.string().trim().nonempty("display name is required"),
+    email: z.email("invalid email address").trim(),
     password: z
       .string()
       .regex(
