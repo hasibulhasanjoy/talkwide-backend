@@ -1,3 +1,4 @@
+import bcrypt from "bcrypt";
 import { NextFunction, Request, Response } from "express";
 
 import IUser from "../interfaces/user.interface.js";
@@ -5,8 +6,6 @@ import User from "../models/user.model.js";
 import { LoginData, SignUpData } from "../schemas/auth.schema.js";
 import AppError from "../utils/appError.class.js";
 import asyncErrorHandler from "../utils/asyncErrorHandler.utils.js";
-import { promises } from "dns";
-import bcrypt from "bcrypt";
 
 export const signUp = asyncErrorHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
