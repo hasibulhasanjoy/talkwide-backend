@@ -1,3 +1,4 @@
+import bcrypt from "bcrypt";
 import jwt, { JwtPayload, SignOptions } from "jsonwebtoken";
 import { model, Schema } from "mongoose";
 
@@ -29,6 +30,15 @@ const UserSchema = new Schema<IUser>(
   },
   { timestamps: true }
 );
+
+UserSchema.pre("save", async function (this: IUser, next) {
+  if (!this.isModified("password")) {
+    return next();
+  }
+
+  this.password = await bcrypt.hash(this.password, 12);
+  next();
+});
 
 UserSchema.methods.generateAuthToken = function (this: IUser): string {
   const secret = process.env.JWT_SECRET_KEY as string;
