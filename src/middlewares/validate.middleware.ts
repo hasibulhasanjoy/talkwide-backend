@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { ZodObject } from "zod";
 import { fromZodError } from "zod-validation-error";
 
-import AppError from "../utils/appError.class";
+import AppError from "../utils/appError.class.js";
 
 export const validate = (schema: ZodObject) => {
   return (req: Request, res: Response, next: NextFunction) => {
