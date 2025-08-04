@@ -20,4 +20,21 @@ export const signUpSchema = z
     path: ["confirmPassword"],
   });
 
+export const loginSchema = z
+  .object({
+    username: z.string().min(3, "username must be at least 3 characters").trim().optional(),
+    email: z.email("invalid email address").trim().optional(),
+    password: z
+      .string()
+      .regex(
+        passwordRegex,
+        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character"
+      ),
+  })
+  .refine((data) => data.username || data.email, {
+    message: "username or email is required for login",
+    path: ["username or email"],
+  });
+
 export type SignUpData = z.infer<typeof signUpSchema>;
+export type LoginData = z.infer<typeof loginSchema>;
