@@ -9,7 +9,7 @@ if (!EMAIL_HOST || !EMAIL_PORT || !EMAIL_USERNAME || !EMAIL_PASSWORD) {
   throw new AppError("Missing email configuration in environment variables.", 500);
 }
 
-const transport = nodemailer.createTransport({
+const transporter = nodemailer.createTransport({
   host: EMAIL_HOST,
   port: Number(EMAIL_PORT),
   auth: {
@@ -19,4 +19,4 @@ const transport = nodemailer.createTransport({
   secure: Number(EMAIL_PORT) === 465,
 } as SMTPTransport.Options);
 
-export default transport;
+export default transporter;
