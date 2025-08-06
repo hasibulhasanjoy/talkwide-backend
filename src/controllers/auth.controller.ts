@@ -4,8 +4,10 @@ import { NextFunction, Request, Response } from "express";
 import IUser from "../interfaces/user.interface.js";
 import User from "../models/user.model.js";
 import { LoginData, SignUpData } from "../schemas/auth.schema.js";
+import sendMail from "../services/mail.service.js";
 import AppError from "../utils/appError.class.js";
 import asyncErrorHandler from "../utils/asyncErrorHandler.utils.js";
+import { welcomeTemplate } from "../utils/emailTemplates.util.js";
 
 export const signUp = asyncErrorHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
@@ -25,6 +27,12 @@ export const signUp = asyncErrorHandler(
     });
 
     const token = newUser.generateAuthToken();
+
+    await sendMail({
+      to: email,
+      subject: "welcome to talkwide",
+      body: welcomeTemplate(username),
+    });
 
     res.status(201).json({
       status: "success",
