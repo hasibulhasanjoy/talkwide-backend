@@ -4,7 +4,7 @@ import AppError from "../utils/appError.class.js";
 
 const sendMail = async ({ to, subject, body }: SendMailOptions) => {
   const transporter = getTransporter();
-  
+
   try {
     const info = await transporter.sendMail({
       from: "talkwide <authentication@talkwide.com>",

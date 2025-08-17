@@ -7,7 +7,7 @@ const getTransporter = () => {
   if (transporter) {
     return transporter;
   }
-  
+
   transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: Number(process.env.EMAIL_PORT),
