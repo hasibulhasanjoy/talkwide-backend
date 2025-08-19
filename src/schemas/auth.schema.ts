@@ -36,5 +36,26 @@ export const loginSchema = z
     path: ["username or email"],
   });
 
+export const forgotPasswordSchema = z.object({
+  email: z.email("invalid email address").trim(),
+});
+
+export const resetPasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .regex(
+        passwordRegex,
+        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character"
+      ),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "password do not match",
+    path: ["confirmPassword"],
+  });
+
 export type SignUpData = z.infer<typeof signUpSchema>;
 export type LoginData = z.infer<typeof loginSchema>;
+export type ForgotPasswordData = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordData = z.infer<typeof resetPasswordSchema>;
