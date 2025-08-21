@@ -1,17 +1,12 @@
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 
+import IUser from "../interfaces/user.interface.js";
 import ResetToken from "../models/resetToken.model.js";
 import User from "../models/user.model.js";
 import AppError from "../utils/appError.class.js";
 
-export const forgotPasswordService = async (email: string) => {
-  const user = await User.findOne({ email });
-
-  if (!user) {
-    throw new AppError("no user found with that email", 404);
-  }
-
+export const forgotPasswordService = async (user: IUser) => {
   const resetToken = crypto.randomBytes(32).toString("hex");
 
   const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");

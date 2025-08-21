@@ -3,11 +3,12 @@ import { NextFunction, Request, Response } from "express";
 
 import IUser from "../interfaces/user.interface.js";
 import User from "../models/user.model.js";
-import { LoginData, SignUpData } from "../schemas/auth.schema.js";
+import { ForgotPasswordData, LoginData, SignUpData } from "../schemas/auth.schema.js";
+import { forgotPasswordService } from "../services/auth.service.js";
 import sendMail from "../services/mail.service.js";
 import AppError from "../utils/appError.class.js";
 import asyncErrorHandler from "../utils/asyncErrorHandler.utils.js";
-import { welcomeTemplate } from "../utils/emailTemplates.util.js";
+import { resetTokenTemplate, welcomeTemplate } from "../utils/emailTemplates.util.js";
 
 export const signUp = asyncErrorHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
@@ -73,6 +74,37 @@ export const login = asyncErrorHandler(
         displayName: existingUser.displayName,
         email: existingUser.email,
       },
+    });
+  }
+);
+
+export const forgetPassword = asyncErrorHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
+    const { email } = req.body as ForgotPasswordData;
+
+    const user: IUser | null = await User.findOne({ email });
+
+    if (!user) {
+      throw new AppError("no user found with that email", 404);
+    }
+
+    const resetToken = await forgotPasswordService(user);
+
+    if (!resetToken) {
+      throw new AppError("error in getting reset token", 400);
+    }
+
+    const resetUrl = `${req.protocol}://${req.get("host")}/api/users/reset-password/${resetToken}`;
+
+    await sendMail({
+      to: email,
+      subject: "Reset Your Password - Token Valid for 10 Minutes",
+      body: resetTokenTemplate(user.username, resetUrl),
+    });
+
+    return res.status(200).json({
+      status: "success",
+      message: "Password reset token sent to email.",
     });
   }
 );
