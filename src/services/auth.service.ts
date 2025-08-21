@@ -42,6 +42,9 @@ export const resetPasswordService = async (token: string, newPassword: string) =
 
   user.password = await bcrypt.hash(newPassword, 12);
   await user.save();
+  const jwtToken = user.generateAuthToken();
 
   await ResetToken.deleteOne({ _id: resetTokenDoc._id });
+
+  return jwtToken;
 };

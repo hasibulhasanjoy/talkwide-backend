@@ -4,8 +4,13 @@ import { NextFunction, Request, Response } from "express";
 import IUser from "../interfaces/user.interface.js";
 import ResetToken from "../models/resetToken.model.js";
 import User from "../models/user.model.js";
-import { ForgotPasswordData, LoginData, SignUpData } from "../schemas/auth.schema.js";
-import { forgotPasswordService } from "../services/auth.service.js";
+import {
+  ForgotPasswordData,
+  LoginData,
+  ResetPasswordData,
+  SignUpData,
+} from "../schemas/auth.schema.js";
+import { forgotPasswordService, resetPasswordService } from "../services/auth.service.js";
 import sendMail from "../services/mail.service.js";
 import AppError from "../utils/appError.class.js";
 import asyncErrorHandler from "../utils/asyncErrorHandler.utils.js";
@@ -111,6 +116,24 @@ export const forgetPassword = asyncErrorHandler(
     return res.status(200).json({
       status: "success",
       message: "Password reset token sent to email.",
+    });
+  }
+);
+
+export const resetPassword = asyncErrorHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    const { token } = req.params;
+    const { password } = req.body as ResetPasswordData;
+
+    const jwtToken = await resetPasswordService(token, password);
+
+    if (!jwtToken) {
+      throw new AppError("password changing failed or error in getting jwt token", 400);
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "password changed successfully",
     });
   }
 );
