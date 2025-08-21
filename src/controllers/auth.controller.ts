@@ -133,6 +133,7 @@ export const resetPassword = asyncErrorHandler(
 
     res.status(200).json({
       status: "success",
+      token: jwtToken,
       message: "password changed successfully",
     });
   }
