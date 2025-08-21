@@ -14,6 +14,6 @@ const router: Router = express.Router();
 router.route("/signup").post(validate(signUpSchema), signUp);
 router.route("/login").post(validate(loginSchema), login);
 router.route("/forget-password").post(validate(forgotPasswordSchema), forgetPassword);
-router.route("reset-password/:token").patch(validate(resetPasswordSchema), resetPassword);
+router.route("/reset-password/:token").patch(validate(resetPasswordSchema), resetPassword);
 
 export default router;
