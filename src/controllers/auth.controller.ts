@@ -2,13 +2,14 @@ import bcrypt from "bcrypt";
 import { NextFunction, Request, Response } from "express";
 
 import IUser from "../interfaces/user.interface.js";
+import ResetToken from "../models/resetToken.model.js";
 import User from "../models/user.model.js";
 import { ForgotPasswordData, LoginData, SignUpData } from "../schemas/auth.schema.js";
 import { forgotPasswordService } from "../services/auth.service.js";
 import sendMail from "../services/mail.service.js";
 import AppError from "../utils/appError.class.js";
 import asyncErrorHandler from "../utils/asyncErrorHandler.utils.js";
-import { resetTokenTemplate, welcomeTemplate } from "../utils/emailTemplates.util.js";
+import { passwordResetTemplate, welcomeTemplate } from "../utils/emailTemplates.util.js";
 
 export const signUp = asyncErrorHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
@@ -96,11 +97,16 @@ export const forgetPassword = asyncErrorHandler(
 
     const resetUrl = `${req.protocol}://${req.get("host")}/api/users/reset-password/${resetToken}`;
 
-    await sendMail({
-      to: email,
-      subject: "Reset Your Password - Token Valid for 10 Minutes",
-      body: resetTokenTemplate(user.username, resetUrl),
-    });
+    try {
+      await sendMail({
+        to: email,
+        subject: "Reset Your Password - Token Valid for 10 Minutes",
+        body: passwordResetTemplate(user.username, resetUrl),
+      });
+    } catch {
+      await ResetToken.deleteMany({ userId: user._id }); // cleanup
+      throw new AppError("Failed to send reset email. Try again later.", 500);
+    }
 
     return res.status(200).json({
       status: "success",

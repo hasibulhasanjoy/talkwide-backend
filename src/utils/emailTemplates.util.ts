@@ -5,18 +5,22 @@ export const welcomeTemplate = (username: string) => {
   return html;
 };
 
-export const resetTokenTemplate = (username: string, resetUrl: string) => {
+export const passwordResetTemplate = (username: string, resetUrl: string) => {
   const html = `
-    Hello ${username || "there"},
-
-    We received a request to reset your password. Click the link below to reset it:
-
-    ${resetUrl}
-
-    If you did not request a password reset, please ignore this email.
-
-    Best regards,
-    Tour Team
+    <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+    <h2>Password Reset Request</h2>
+    <p>Hello <strong>${username || "there"}</strong>,</p>
+    <p>We received a request to reset your password. Click the button below:</p>
+    <a href="${resetUrl}" 
+       style="display: inline-block; padding: 10px 20px; background-color: #2563eb; color: #fff; 
+              text-decoration: none; border-radius: 5px; font-weight: bold;">
+      Reset Password
+    </a>
+    <p style="margin-top:20px;">
+      If you didn’t request this, you can safely ignore this email.
+    </p>
+    <p>— Talkwide Team</p>
+  </div>
   `;
 
   return html;
