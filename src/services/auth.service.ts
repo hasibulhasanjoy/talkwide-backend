@@ -1,4 +1,3 @@
-import bcrypt from "bcrypt";
 import crypto from "crypto";
 
 import IUser from "../interfaces/user.interface.js";
