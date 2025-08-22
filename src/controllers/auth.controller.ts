@@ -63,7 +63,7 @@ export const login = asyncErrorHandler(
     if (!existingUser) {
       throw new AppError("invalid credential", 401);
     }
-    
+
     const isPasswordCorrect = await bcrypt.compare(password, existingUser.password);
 
     if (!isPasswordCorrect) {
