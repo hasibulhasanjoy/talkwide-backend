@@ -102,20 +102,18 @@ export const forgetPassword = asyncErrorHandler(
 
     const resetUrl = `${req.protocol}://${req.get("host")}/api/users/reset-password/${resetToken}`;
 
-    try {
-      await sendMail({
-        to: email,
-        subject: "Reset Your Password - Token Valid for 10 Minutes",
-        body: passwordResetTemplate(user.username, resetUrl),
-      });
-    } catch {
-      await ResetToken.deleteMany({ userId: user._id }); // cleanup
-      throw new AppError("Failed to send reset email. Try again later.", 500);
-    }
-
-    return res.status(200).json({
+    res.status(200).json({
       status: "success",
       message: "Password reset token sent to email.",
+    });
+
+    sendMail({
+      to: email,
+      subject: "Reset Your Password - Token Valid for 10 Minutes",
+      body: passwordResetTemplate(user.username, resetUrl),
+    }).catch(async (_err) => {
+      await ResetToken.deleteMany({ userId: user._id });
+      console.log("Failed to send reset email. Try again later.");
     });
   }
 );
