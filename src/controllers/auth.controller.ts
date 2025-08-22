@@ -84,7 +84,7 @@ export const login = asyncErrorHandler(
   }
 );
 
-export const forgetPassword = asyncErrorHandler(
+export const forgotPassword = asyncErrorHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
     const { email } = req.body as ForgotPasswordData;
 
