@@ -40,9 +40,9 @@ export const resetPasswordService = async (token: string, newPassword: string) =
     throw new AppError("no user is found for that token", 404);
   }
 
-  user.password = await bcrypt.hash(newPassword, 12);
+  user.password = newPassword;
   await user.save();
-  
+
   const jwtToken = user.generateAuthToken();
 
   await ResetToken.deleteOne({ _id: resetTokenDoc._id });
