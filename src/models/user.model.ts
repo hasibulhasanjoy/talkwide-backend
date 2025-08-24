@@ -40,6 +40,13 @@ UserSchema.pre("save", async function (this: IUser, next) {
   next();
 });
 
+UserSchema.methods.comparePassword = async function (
+  this: IUser,
+  candidatePassword: string
+): Promise<boolean> {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+
 UserSchema.methods.generateAuthToken = function (this: IUser): string {
   const secret = process.env.JWT_SECRET_KEY as string;
   const expiresIn = process.env.JWT_EXPIRES_IN as `${number}${"d" | "h" | "m"}`;

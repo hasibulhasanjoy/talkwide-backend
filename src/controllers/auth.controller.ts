@@ -5,6 +5,7 @@ import IUser from "../interfaces/user.interface.js";
 import ResetToken from "../models/resetToken.model.js";
 import User from "../models/user.model.js";
 import {
+  ChangePasswordData,
   ForgotPasswordData,
   LoginData,
   ResetPasswordData,
@@ -132,6 +133,32 @@ export const resetPassword = asyncErrorHandler(
     res.status(200).json({
       status: "success",
       token: jwtToken,
+      message: "password changed successfully",
+    });
+  }
+);
+
+export const changePassword = asyncErrorHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void | Response> => {
+    const user: IUser = (await User.findById(req.user!.id).select("+password")) as IUser;
+
+    const { oldPassword, newPassword } = req.body as ChangePasswordData;
+
+    const isPasswordCorrect = await user.comparePassword(oldPassword);
+    console.log(isPasswordCorrect);
+
+    if (!isPasswordCorrect) {
+      return next(new AppError("incorrect password", 401));
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    const token = user.generateAuthToken();
+
+    res.status(200).json({
+      status: "success",
+      token,
       message: "password changed successfully",
     });
   }

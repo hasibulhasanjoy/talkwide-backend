@@ -14,6 +14,7 @@ interface IUser extends Document {
   lastLogin?: Date | null;
   karma: number;
   generateAuthToken: () => string;
+  comparePassword: (candidatePassword: string) => Promise<boolean>;
 
   posts: Types.ObjectId[];
   comments: Types.ObjectId[];

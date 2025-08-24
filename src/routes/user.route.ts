@@ -1,8 +1,16 @@
 import express, { Router } from "express";
 
-import { forgotPassword, login, resetPassword, signUp } from "../controllers/auth.controller.js";
+import {
+  changePassword,
+  forgotPassword,
+  login,
+  resetPassword,
+  signUp,
+} from "../controllers/auth.controller.js";
+import { authenticateUser } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
+  changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
   resetPasswordSchema,
@@ -15,5 +23,7 @@ router.route("/signup").post(validate(signUpSchema), signUp);
 router.route("/login").post(validate(loginSchema), login);
 router.route("/forget-password").post(validate(forgotPasswordSchema), forgotPassword);
 router.route("/reset-password/:token").patch(validate(resetPasswordSchema), resetPassword);
-
+router
+  .route("/change-password")
+  .patch(authenticateUser, validate(changePasswordSchema), changePassword);
 export default router;
