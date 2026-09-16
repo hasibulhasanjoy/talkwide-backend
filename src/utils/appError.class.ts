@@ -3,12 +3,12 @@ class AppError extends Error {
   public readonly status: string;
   public readonly isOperational: boolean;
 
-  constructor(message: string, statusCode: number) {
+  constructor(message: string, statusCode: number, isOperational: boolean = true) {
     super(message);
 
     this.statusCode = statusCode;
     this.status = `${statusCode}`.startsWith("4") ? "fail" : "internal server error";
-    this.isOperational = true;
+    this.isOperational = isOperational;
 
     Error.captureStackTrace(this, this.constructor);
   }
