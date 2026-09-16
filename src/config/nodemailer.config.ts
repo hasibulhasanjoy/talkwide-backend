@@ -1,9 +1,8 @@
-import nodemailer from "nodemailer";
-import SMTPTransport from "nodemailer/lib/smtp-transport";
+import nodemailer, { type Transporter } from "nodemailer";
 
-let transporter: nodemailer.Transporter<SMTPTransport.SentMessageInfo> | null = null;
+let transporter: Transporter | null = null;
 
-const getTransporter = () => {
+const getTransporter = (): Transporter => {
   if (transporter) {
     return transporter;
   }
@@ -16,7 +15,8 @@ const getTransporter = () => {
       pass: process.env.EMAIL_PASSWORD,
     },
     secure: Number(process.env.EMAIL_PORT) === 465,
-  } as SMTPTransport.Options);
+  });
+
   return transporter;
 };
 
