@@ -1,10 +1,12 @@
 import { NextFunction, Request, Response } from "express";
-import { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 
 import AppError from "../utils/appError.class.js";
+
+const { JsonWebTokenError, TokenExpiredError } = jwt;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;

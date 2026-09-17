@@ -121,7 +121,7 @@ export const forgotPassword = asyncErrorHandler(
 
 export const resetPassword = asyncErrorHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const { token } = req.params;
+    const token = req.params.token as string;
     const { password } = req.body as ResetPasswordData;
 
     const jwtToken = await resetPasswordService(token, password);
@@ -140,7 +140,7 @@ export const resetPassword = asyncErrorHandler(
 
 export const changePassword = asyncErrorHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void | Response> => {
-    const user: IUser = (await User.findById(req.user!.id).select("+password")) as IUser;
+    const user: IUser = (await User.findById(req.user!._id).select("+password")) as IUser;
 
     const { oldPassword, newPassword } = req.body as ChangePasswordData;
 
