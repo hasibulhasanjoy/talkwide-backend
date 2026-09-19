@@ -7,7 +7,13 @@ import {
   resetPassword,
   signUp,
 } from "../controllers/auth.controller.js";
-import { authenticateUser } from "../middlewares/auth.middleware.js";
+import {
+  getDownvotedPosts,
+  getSavedPosts,
+  getUpvotedPosts,
+  getUserPosts,
+} from "../controllers/post.controller.js";
+import { authenticateUser, optionalAuthenticateUser } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
   changePasswordSchema,
@@ -26,4 +32,10 @@ router.route("/reset-password/:token").patch(validate(resetPasswordSchema), rese
 router
   .route("/change-password")
   .patch(authenticateUser, validate(changePasswordSchema), changePassword);
+
+router.route("/me/saved").get(authenticateUser, getSavedPosts);
+router.route("/me/upvoted").get(authenticateUser, getUpvotedPosts);
+router.route("/me/downvoted").get(authenticateUser, getDownvotedPosts);
+router.route("/:username/posts").get(optionalAuthenticateUser, getUserPosts);
+
 export default router;

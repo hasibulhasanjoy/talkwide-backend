@@ -26,3 +26,25 @@ export const authenticateUser = asyncErrorHandler(
     next();
   }
 );
+
+export const optionalAuthenticateUser = asyncErrorHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const token = req.headers.authorization?.split(" ")[1];
+    const secret = process.env.JWT_SECRET_KEY as string;
+    if (!token) {
+      return next();
+    }
+
+    try {
+      const decoded = await verifyToken(token, secret);
+      const user: IUser | null = await User.findById(decoded.id);
+      if (user) {
+        req.user = user;
+      }
+    } catch {
+      // Ignore token verification errors for optional authentication
+    }
+
+    next();
+  }
+);

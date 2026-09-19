@@ -4,6 +4,7 @@ import express from "express";
 import morgan from "morgan";
 
 import { globalErrorHandler } from "./middlewares/error.middleware.js";
+import postRouter from "./routes/post.route.js";
 import userRouter from "./routes/user.route.js";
 import AppError from "./utils/appError.class.js";
 
@@ -14,6 +15,7 @@ app.use(morgan("dev"));
 app.use(express.json({ limit: "10kb" }));
 
 app.use("/api/users", userRouter);
+app.use("/api/posts", postRouter);
 
 app.use((req, _res, next) => {
   next(new AppError(`Cannot find ${req.originalUrl} on this server`, 404));
