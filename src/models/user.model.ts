@@ -12,13 +12,21 @@ const UserSchema = new Schema<IUser>(
     displayName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     emailVerifiedAt: { type: Date },
-    password: { type: String, required: true, select: false },
+    password: {
+      type: String,
+      required: function (this: IUser) {
+        return this.authProvider === "local" || !this.authProvider;
+      },
+      select: false,
+    },
     avatarUrl: { type: String },
     bio: { type: String },
     role: { type: String, enum: ["user", "admin", "moderator"], default: "user" },
     isBanned: { type: Boolean, default: false },
     lastLogin: { type: Date },
     karma: { type: Number, default: 0 },
+    authProvider: { type: String, enum: ["local", "google"], default: "local" },
+    googleId: { type: String, unique: true, sparse: true },
 
     posts: [{ type: ObjectId, ref: "Post" }],
     comments: [{ type: ObjectId, ref: "Comment" }],
@@ -32,7 +40,7 @@ const UserSchema = new Schema<IUser>(
 );
 
 UserSchema.pre("save", async function (this: IUser) {
-  if (!this.isModified("password")) {
+  if (!this.isModified("password") || !this.password) {
     return;
   }
 
@@ -43,6 +51,9 @@ UserSchema.methods.comparePassword = async function (
   this: IUser,
   candidatePassword: string
 ): Promise<boolean> {
+  if (!this.password) {
+    return false;
+  }
   return await bcrypt.compare(candidatePassword, this.password);
 };
 

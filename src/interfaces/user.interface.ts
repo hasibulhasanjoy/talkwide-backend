@@ -13,6 +13,8 @@ interface IUser extends Document {
   isBanned: boolean;
   lastLogin?: Date | null;
   karma: number;
+  authProvider: "local" | "google";
+  googleId?: string | null;
   generateAuthToken: () => string;
   comparePassword: (candidatePassword: string) => Promise<boolean>;
 

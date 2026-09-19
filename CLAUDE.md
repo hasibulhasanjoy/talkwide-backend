@@ -63,17 +63,21 @@ Zod schemas live in `src/schemas/`. The `validate` middleware (`src/middlewares/
 
 Required in `.env` (not committed):
 
-| Variable         | Purpose                                                        |
-| ---------------- | -------------------------------------------------------------- |
-| `MONGO_URI`      | MongoDB connection string                                      |
-| `PORT`           | Server port (default 5500)                                     |
-| `JWT_SECRET_KEY` | Secret for signing JWTs                                        |
-| `JWT_EXPIRES_IN` | Token lifetime, e.g. `7d`                                      |
-| `NODE_ENV`       | `development` or `production` (controls error response detail) |
-| `EMAIL_HOST`     | SMTP host                                                      |
-| `EMAIL_PORT`     | SMTP port (465 → TLS)                                          |
-| `EMAIL_USERNAME` | SMTP username                                                  |
-| `EMAIL_PASSWORD` | SMTP password                                                  |
+| Variable               | Purpose                                                                    |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `MONGO_URI`            | MongoDB connection string                                                  |
+| `PORT`                 | Server port (default 5500)                                                 |
+| `JWT_SECRET_KEY`       | Secret for signing JWTs                                                    |
+| `JWT_EXPIRES_IN`       | Token lifetime, e.g. `7d`                                                  |
+| `NODE_ENV`             | `development` or `production` (controls error response detail)             |
+| `EMAIL_HOST`           | SMTP host                                                                  |
+| `EMAIL_PORT`           | SMTP port (465 → TLS)                                                      |
+| `EMAIL_USERNAME`       | SMTP username                                                              |
+| `EMAIL_PASSWORD`       | SMTP password                                                              |
+| `GOOGLE_CLIENT_ID`     | Google OAuth 2.0 client ID                                                 |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret                                             |
+| `GOOGLE_CALLBACK_URL`  | OAuth callback URL (e.g. `http://localhost:5500/api/auth/google/callback`) |
+| `FRONTEND_URL`         | Frontend application URL for OAuth redirects                               |
 
 ## Code Style
 
