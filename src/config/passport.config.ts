@@ -8,12 +8,17 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID as string;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET as string;
 const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL as string;
 
+// Ensure environment variables are loaded
+if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_CALLBACK_URL) {
+  console.warn("⚠️ Google OAuth environment variables are not properly set. Google authentication will not work.");
+}
+
 passport.use(
   new GoogleStrategy(
     {
-      clientID: GOOGLE_CLIENT_ID,
-      clientSecret: GOOGLE_CLIENT_SECRET,
-      callbackURL: GOOGLE_CALLBACK_URL,
+      clientID: GOOGLE_CLIENT_ID || "dummy-client-id",
+      clientSecret: GOOGLE_CLIENT_SECRET || "dummy-client-secret",
+      callbackURL: GOOGLE_CALLBACK_URL || "http://localhost:5500/api/auth/google/callback",
       scope: ["profile", "email"],
     },
     (_accessToken: string, _refreshToken: string, profile: Profile, done: VerifyCallback): void => {
