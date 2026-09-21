@@ -7,9 +7,11 @@ import asyncErrorHandler from "../utils/asyncErrorHandler.utils.js";
 
 export const getProfile = asyncErrorHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
-    const user: IUser | null = await User.findById(req.user!._id).select(
+    const currentUser = req.user as IUser;
+
+    const user = (await User.findById(currentUser._id).select(
       "-password -googleId -upvotedPosts -downVotedPosts -upvotedComments -downVotedComments"
-    );
+    )) as IUser | null;
 
     if (!user) {
       throw new AppError("user not found", 404);
