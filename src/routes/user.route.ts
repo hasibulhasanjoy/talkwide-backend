@@ -13,6 +13,7 @@ import {
   getUpvotedPosts,
   getUserPosts,
 } from "../controllers/post.controller.js";
+import { getProfile } from "../controllers/user.controller.js";
 import { authenticateUser, optionalAuthenticateUser } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
@@ -33,6 +34,7 @@ router
   .route("/change-password")
   .patch(authenticateUser, validate(changePasswordSchema), changePassword);
 
+router.route("/me/profile").get(authenticateUser, getProfile);
 router.route("/me/saved").get(authenticateUser, getSavedPosts);
 router.route("/me/upvoted").get(authenticateUser, getUpvotedPosts);
 router.route("/me/downvoted").get(authenticateUser, getDownvotedPosts);
