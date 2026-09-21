@@ -39,3 +39,41 @@ export const getProfile = asyncErrorHandler(
     });
   }
 );
+
+export const getUserProfile = asyncErrorHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
+    const { username } = req.params;
+
+    const user = (await User.findOne({ username }).select(
+      "-password -googleId -upvotedPosts -downVotedPosts -upvotedComments -downVotedComments"
+    )) as IUser | null;
+
+    if (!user) {
+      throw new AppError("user not found", 404);
+    }
+
+    const publicProfile = {
+      _id: user._id,
+      username: user.username,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+      role: user.role,
+      karma: user.karma,
+      authProvider: user.authProvider,
+      createdAt: user.createdAt,
+    };
+
+    const responseData: Record<string, unknown> = { user: publicProfile };
+
+    // Include relationship info if the requester is authenticated
+    if (req.user) {
+      responseData.isOwnProfile = user._id.equals(req.user._id);
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: responseData,
+    });
+  }
+);
