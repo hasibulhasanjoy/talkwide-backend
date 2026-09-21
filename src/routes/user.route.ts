@@ -13,7 +13,11 @@ import {
   getUpvotedPosts,
   getUserPosts,
 } from "../controllers/post.controller.js";
-import { getProfile, getUserProfile } from "../controllers/user.controller.js";
+import {
+  getProfile,
+  getUserProfile,
+  updateProfile,
+} from "../controllers/user.controller.js";
 import { authenticateUser, optionalAuthenticateUser } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
@@ -23,6 +27,7 @@ import {
   resetPasswordSchema,
   signUpSchema,
 } from "../schemas/auth.schema.js";
+import { updateProfileSchema } from "../schemas/user.schema.js";
 
 const router: Router = express.Router();
 
@@ -35,6 +40,9 @@ router
   .patch(authenticateUser, validate(changePasswordSchema), changePassword);
 
 router.route("/me/profile").get(authenticateUser, getProfile);
+router
+  .route("/me/profile")
+  .patch(authenticateUser, validate(updateProfileSchema), updateProfile);
 router.route("/me/saved").get(authenticateUser, getSavedPosts);
 router.route("/me/upvoted").get(authenticateUser, getUpvotedPosts);
 router.route("/me/downvoted").get(authenticateUser, getDownvotedPosts);
