@@ -71,6 +71,10 @@ export const login = asyncErrorHandler(
       throw new AppError("invalid credential", 401);
     }
 
+    // Update last login time
+    existingUser.lastLogin = new Date();
+    await existingUser.save({ validateBeforeSave: false });
+
     const token = existingUser.generateAuthToken();
 
     res.status(200).json({
