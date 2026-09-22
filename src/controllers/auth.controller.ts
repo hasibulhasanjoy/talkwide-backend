@@ -38,7 +38,7 @@ const dispatchVerificationEmail = (
   req: Request
 ): void => {
   const frontendUrl = process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`;
-  const verificationUrl = `${frontendUrl}/verify-email/${verificationToken}`;
+  const verificationUrl = `${frontendUrl}/api/users/verify-email/${verificationToken}`;
 
   sendMail({
     to: recipient.email,
