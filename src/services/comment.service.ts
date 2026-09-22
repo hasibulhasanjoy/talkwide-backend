@@ -233,11 +233,7 @@ const buildCommentTree = (
     node.replies = [];
     if (userVotes) {
       const id = node._id.toString();
-      node.userVote = userVotes.up.has(id)
-        ? "upvote"
-        : userVotes.down.has(id)
-          ? "downvote"
-          : null;
+      node.userVote = userVotes.up.has(id) ? "upvote" : userVotes.down.has(id) ? "downvote" : null;
     }
     nodeById.set(node._id.toString(), node);
   }
@@ -280,9 +276,7 @@ export const getPostCommentTree = async ({
   const postObjectId = new Types.ObjectId(postId);
 
   const sortSpec: Record<string, 1 | -1> =
-    sort === "new"
-      ? { isPinned: -1, createdAt: -1 }
-      : { isPinned: -1, score: -1, createdAt: -1 };
+    sort === "new" ? { isPinned: -1, createdAt: -1 } : { isPinned: -1, score: -1, createdAt: -1 };
 
   const skip = (page - 1) * limit;
   const topLevelFilter = { post: postObjectId, parent: null, isDeleted: false };
