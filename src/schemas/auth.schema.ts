@@ -79,9 +79,17 @@ export const googleAuthSchema = z.object({
   idToken: z.string().min(1, "Google ID token is required"),
 });
 
+/**
+ * Schema for sending verification email (requires authenticated user).
+ */
+export const sendVerificationEmailSchema = z.object({
+  email: z.email("invalid email address").trim(),
+});
+
 export type SignUpData = z.infer<typeof signUpSchema>;
 export type LoginData = z.infer<typeof loginSchema>;
 export type ForgotPasswordData = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordData = z.infer<typeof resetPasswordSchema>;
 export type ChangePasswordData = z.infer<typeof changePasswordSchema>;
 export type GoogleAuthData = z.infer<typeof googleAuthSchema>;
+export type SendVerificationEmailData = z.infer<typeof sendVerificationEmailSchema>;

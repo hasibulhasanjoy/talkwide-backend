@@ -39,8 +39,12 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
-UserSchema.pre("save", async function (this: IUser) {
+UserSchema.pre("save", async function (this: IUser & { $locals: { skipPasswordHash?: boolean } }) {
   if (!this.isModified("password") || !this.password) {
+    return;
+  }
+
+  if (this.$locals.skipPasswordHash) {
     return;
   }
 

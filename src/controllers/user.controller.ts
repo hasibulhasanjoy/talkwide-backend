@@ -115,7 +115,9 @@ export const updateProfile = asyncErrorHandler(
       currentUser._id,
       { $set: updateFields },
       { new: true, runValidators: true }
-    ).select("-password -googleId -upvotedPosts -downVotedPosts -upvotedComments -downVotedComments");
+    ).select(
+      "-password -googleId -upvotedPosts -downVotedPosts -upvotedComments -downVotedComments"
+    );
 
     if (!updatedUser) {
       throw new AppError("user not found", 404);

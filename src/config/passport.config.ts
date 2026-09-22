@@ -10,7 +10,9 @@ const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL as string;
 
 // Ensure environment variables are loaded
 if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_CALLBACK_URL) {
-  console.warn("⚠️ Google OAuth environment variables are not properly set. Google authentication will not work.");
+  console.warn(
+    "⚠️ Google OAuth environment variables are not properly set. Google authentication will not work."
+  );
 }
 
 passport.use(

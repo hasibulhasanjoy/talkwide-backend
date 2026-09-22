@@ -9,49 +9,122 @@ import {
   ForgotPasswordData,
   LoginData,
   ResetPasswordData,
+  SendVerificationEmailData,
   SignUpData,
 } from "../schemas/auth.schema.js";
-import { forgotPasswordService, resetPasswordService } from "../services/auth.service.js";
+import {
+  forgotPasswordService,
+  initiateSignupService,
+  resendSignupVerificationService,
+  resetPasswordService,
+  verifySignupService,
+} from "../services/auth.service.js";
 import sendMail from "../services/mail.service.js";
 import AppError from "../utils/appError.class.js";
 import asyncErrorHandler from "../utils/asyncErrorHandler.utils.js";
-import { passwordResetTemplate, welcomeTemplate } from "../utils/emailTemplates.util.js";
+import {
+  emailVerificationTemplate,
+  passwordResetTemplate,
+  welcomeTemplate,
+} from "../utils/emailTemplates.util.js";
+
+/**
+ * Builds the verification URL and fires the email in the background.
+ * Shared by signUp and resendVerificationEmail.
+ */
+const dispatchVerificationEmail = (
+  recipient: { username: string; email: string },
+  verificationToken: string,
+  req: Request
+): void => {
+  const frontendUrl = process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`;
+  const verificationUrl = `${frontendUrl}/verify-email/${verificationToken}`;
+
+  sendMail({
+    to: recipient.email,
+    subject: "Verify Your Email Address",
+    body: emailVerificationTemplate(recipient.username, verificationUrl),
+  }).catch((_err) => {
+    // Don't delete the pending signup here — the user can still hit
+    // /resend-verification-email to get a fresh token for the same data.
+    console.log("Failed to send verification email. User can request a new one.");
+  });
+};
 
 export const signUp = asyncErrorHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
-    const { username, displayName, email, password } = req.body as SignUpData;
+    const signUpData = req.body as SignUpData;
 
-    const existingUser: IUser | null = await User.findOne({ email });
-
-    if (existingUser) {
-      throw new AppError("user already exists with this email", 400);
-    }
-
-    const newUser: IUser = await User.create({
-      username,
-      displayName,
-      email,
-      password,
+    const existingUser: IUser | null = await User.findOne({
+      $or: [{ email: signUpData.email }, { username: signUpData.username }],
     });
 
-    const token = newUser.generateAuthToken();
+    if (existingUser) {
+      throw new AppError("user already exists with this email or username", 400);
+    }
+
+    // Nothing is created in the User collection yet — the signup is staged
+    // and only promoted to a real account once the email is verified.
+    const { token, username, email } = await initiateSignupService(signUpData);
+
+    dispatchVerificationEmail({ username, email }, token, req);
+
+    res.status(202).json({
+      status: "success",
+      message: "Verification email sent. Please verify your email to complete registration.",
+      data: {
+        user: {
+          username,
+          displayName: signUpData.displayName,
+          email,
+        },
+      },
+    });
+  }
+);
+
+export const verifyEmail = asyncErrorHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
+    const token = req.params.token as string;
+
+    // Account is created here, for the first time, only on success
+    const newUser = await verifySignupService(token);
+
+    const jwtToken = newUser.generateAuthToken();
 
     await sendMail({
-      to: email,
-      subject: "welcome to talkwide",
-      body: welcomeTemplate(username),
+      to: newUser.email,
+      subject: "Welcome to Talkwide!",
+      body: welcomeTemplate(newUser.username),
     });
 
     res.status(201).json({
       status: "success",
-      token,
+      token: jwtToken,
+      message: "Email verified successfully. Welcome to Talkwide!",
       data: {
         user: {
-          username,
-          displayName,
-          email,
+          username: newUser.username,
+          displayName: newUser.displayName,
+          email: newUser.email,
+          emailVerifiedAt: newUser.emailVerifiedAt,
         },
       },
+    });
+  }
+);
+
+export const resendVerificationEmail = asyncErrorHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
+    const { email } = req.body as SendVerificationEmailData;
+
+    const { token, username } = await resendSignupVerificationService(email);
+
+    dispatchVerificationEmail({ username, email }, token, req);
+
+    res.status(200).json({
+      status: "success",
+      message: "Verification email sent. Please check your inbox.",
     });
   }
 );
@@ -71,7 +144,6 @@ export const login = asyncErrorHandler(
       throw new AppError("invalid credential", 401);
     }
 
-    // Update last login time
     existingUser.lastLogin = new Date();
     await existingUser.save({ validateBeforeSave: false });
 
