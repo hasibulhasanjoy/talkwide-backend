@@ -385,3 +385,36 @@ export const getDownvotedPosts = asyncErrorHandler(
     });
   }
 );
+
+// Toggle whether comments are turned off for a post. Only the post author may do
+// this; while locked, creating comments or replies is rejected with a 403.
+export const lockPostComments = asyncErrorHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void | Response> => {
+    const id = req.params.id as string;
+    const userId = req.user!._id;
+
+    if (!Types.ObjectId.isValid(id)) {
+      throw new AppError("Invalid post ID", 400);
+    }
+
+    const post = await Post.findOne({ _id: id, isDeleted: false });
+
+    if (!post) {
+      throw new AppError("Post not found", 404);
+    }
+
+    if (!post.author.equals(userId)) {
+      throw new AppError("You are not authorized to change comment settings for this post", 403);
+    }
+
+    post.isLocked = !post.isLocked;
+    await post.save();
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        isLocked: post.isLocked,
+      },
+    });
+  }
+);
