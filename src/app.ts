@@ -6,6 +6,7 @@ import morgan from "morgan";
 import passport from "./config/passport.config.js";
 import { globalErrorHandler } from "./middlewares/error.middleware.js";
 import commentRouter from "./routes/comment.route.js";
+import communityRouter from "./routes/community.route.js";
 import oauthRouter from "./routes/oauth.route.js";
 import postRouter from "./routes/post.route.js";
 import userRouter from "./routes/user.route.js";
@@ -22,6 +23,7 @@ app.use("/api/auth", oauthRouter);
 app.use("/api/users", userRouter);
 app.use("/api/posts", postRouter);
 app.use("/api/comments", commentRouter);
+app.use("/api/communities", communityRouter);
 
 app.use((req, _res, next) => {
   next(new AppError(`Cannot find ${req.originalUrl} on this server`, 404));

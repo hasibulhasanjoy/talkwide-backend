@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 
 import IPost from "../interfaces/post.interface.js";
 import IUser from "../interfaces/user.interface.js";
+import Community from "../models/community.model.js";
 import Post from "../models/post.model.js";
 import User from "../models/user.model.js";
 import { CreatePostData, PostQueryData, UpdatePostData, VoteData } from "../schemas/post.schema.js";
@@ -28,6 +29,27 @@ export const createPost = asyncErrorHandler(
       community: community ? new Types.ObjectId(community) : null,
     };
 
+    // Validate community membership when posting to a community.
+    if (community) {
+      const communityDoc = await Community.findOne({
+        _id: community,
+        isDeleted: false,
+      });
+
+      if (!communityDoc) {
+        throw new AppError("Community not found", 404);
+      }
+
+      if (communityDoc.bannedUsers.some((id) => id.equals(author))) {
+        throw new AppError("You are banned from this community", 403);
+      }
+
+      const isMember = communityDoc.members.some((m) => m.user.equals(author));
+      if (!isMember) {
+        throw new AppError("You must be a member of this community to post", 403);
+      }
+    }
+
     if (type === "image") {
       if (!req.file) {
         throw new AppError("Image file is required for image posts", 400);
@@ -43,6 +65,10 @@ export const createPost = asyncErrorHandler(
     const post = await Post.create(postData);
 
     await User.findByIdAndUpdate(author, { $push: { posts: post._id } });
+
+    if (community) {
+      await Community.findByIdAndUpdate(community, { $inc: { postCount: 1 } });
+    }
 
     const populatedPost = await Post.findById(post._id).populate(
       "author",
@@ -155,9 +181,24 @@ export const deletePost = asyncErrorHandler(
     }
 
     const isAuthor = post.author.equals(user._id);
-    const isModerator = ["admin", "moderator"].includes(user.role);
+    const isSiteRole = ["admin", "moderator"].includes(user.role);
 
-    if (!isAuthor && !isModerator) {
+    // Community posts can also be deleted by community admins/moderators.
+    let isCommunityMod = false;
+    if (post.community) {
+      const communityDoc = await Community.findOne({
+        _id: post.community,
+        isDeleted: false,
+      });
+      if (communityDoc) {
+        const member = communityDoc.members.find((m) => m.user.equals(user._id));
+        if (member && ["owner", "admin", "moderator"].includes(member.role)) {
+          isCommunityMod = true;
+        }
+      }
+    }
+
+    if (!isAuthor && !isSiteRole && !isCommunityMod) {
       throw new AppError("You are not authorized to delete this post", 403);
     }
 
@@ -166,6 +207,9 @@ export const deletePost = asyncErrorHandler(
     await post.save();
 
     await User.findByIdAndUpdate(post.author, { $pull: { posts: post._id } });
+    if (post.community) {
+      await Community.findByIdAndUpdate(post.community, { $inc: { postCount: -1 } });
+    }
 
     if (post.image?.publicId) {
       await deleteImageFromCloudinary(post.image.publicId);
