@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 
 import ICommunity from "../../interfaces/community.interface.js";
 import Community from "../../models/community.model.js";
+import Post from "../../models/post.model.js";
 import AppError from "../../utils/appError.class.js";
 import { assertRole, createSlug, findCommunityOrFail } from "./community.helpers.js";
 
@@ -100,7 +101,22 @@ export const deleteCommunity = async (
     throw new AppError("Only the community owner can delete the community", 403);
   }
 
+  const currentTimestamp = new Date();
+
   community.isDeleted = true;
-  community.deletedAt = new Date();
+  community.deletedAt = currentTimestamp;
   await community.save();
+
+  await Post.updateMany(
+    {
+      community: community._id,
+      isDeleted: false,
+    },
+    {
+      $set: {
+        isDeleted: true,
+        deletedAt: currentTimestamp,
+      },
+    }
+  );
 };
