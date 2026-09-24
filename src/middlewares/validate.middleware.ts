@@ -17,3 +17,18 @@ export const validate = (schema: ZodObject) => {
     next();
   };
 };
+
+// Express 5: `req.query` is a read-only getter, so validated data goes to res.locals.
+export const validateQuery = (schema: ZodObject) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req.query);
+
+    if (!result.success) {
+      const message = fromZodError(result.error).details[0].message;
+      throw new AppError(message, 400);
+    }
+
+    res.locals.validatedQuery = result.data;
+    next();
+  };
+};
