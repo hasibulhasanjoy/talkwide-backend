@@ -8,6 +8,6 @@ const PORT: number = Number(process.env.PORT) || 5500;
 
 await connectDB();
 
-app.listen(PORT, () => {
-  console.log(`🚀 server is running on port:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server is running on port: ${PORT}`);
 });
