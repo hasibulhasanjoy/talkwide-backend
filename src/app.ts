@@ -9,6 +9,7 @@ import commentRouter from "./routes/comment.route.js";
 import communityRouter from "./routes/community.route.js";
 import oauthRouter from "./routes/oauth.route.js";
 import postRouter from "./routes/post.route.js";
+import searchRouter from "./routes/search.route.js";
 import userRouter from "./routes/user.route.js";
 import AppError from "./utils/appError.class.js";
 
@@ -24,6 +25,7 @@ app.use("/api/users", userRouter);
 app.use("/api/posts", postRouter);
 app.use("/api/comments", commentRouter);
 app.use("/api/communities", communityRouter);
+app.use("/api/search", searchRouter);
 
 app.use((req, _res, next) => {
   next(new AppError(`Cannot find ${req.originalUrl} on this server`, 404));
