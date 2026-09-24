@@ -5,12 +5,7 @@ import Community from "../../models/community.model.js";
 import AppError from "../../utils/appError.class.js";
 
 export const createSlug = (name: string): string => {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "") // remove special characters
-    .replace(/\s+/g, "-") // spaces → -
-    .replace(/-+/g, "-"); // multiple - → single -
+  return name.toLowerCase().trim();
 };
 
 export const findCommunityOrFail = async (
