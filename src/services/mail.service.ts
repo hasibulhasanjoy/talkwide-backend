@@ -7,7 +7,7 @@ const sendMail = async ({ to, subject, body }: SendMailOptions) => {
 
   try {
     const info = await transporter.sendMail({
-      from: "talkwide <authentication@talkwide.com>",
+      from: "talkwide <talkwide5@gmail.com>",
       to,
       subject,
       text: body,
