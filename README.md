@@ -17,6 +17,7 @@
 
 - [Overview](#-overview)
 - [Live API](#-live-api)
+- [API Documentation](#-api-documentation)
 - [Key Engineering Highlights](#-key-engineering-highlights)
 - [System Architecture](#-system-architecture)
 - [Core Features](#-core-features)
@@ -61,6 +62,26 @@ curl "https://talkwide-api.onrender.com/api/posts?sort=hot&limit=5"
 ```
 
 > ℹ️ Hosted on Render's free tier, the instance spins down after periods of inactivity. If the first request is slow or times out, give it ~30–60 seconds to wake up and try again.
+
+---
+
+## 📚 API Documentation
+
+The API is fully documented with an interactive OpenAPI 3.0 reference — no need to run the code or hit endpoints manually to understand how it works.
+
+| Resource                                                            | What it is                                                                                                          |
+| :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------ |
+| [Live interactive docs](https://talkwide-api.onrender.com/api-docs) | Browsable Redoc reference served directly by the API — every endpoint, request/response examples, auth requirements |
+| [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md)                    | Human-readable walkthrough: every endpoint, inputs, and exactly what comes back                                     |
+| [`docs/openapi.yaml`](docs/openapi.yaml)                            | Machine-readable OpenAPI 3.0 spec — import into Postman/Insomnia, or lint with Redocly                              |
+| [`docs/docs.html`](docs/docs.html)                                  | Standalone Redoc page for static hosting (e.g. GitHub Pages) — serve the folder over http(s)                        |
+
+The interactive docs are served straight from the app itself, so they stay in sync with whatever is deployed:
+
+```
+https://talkwide-api.onrender.com/api-docs          → interactive Redoc UI
+https://talkwide-api.onrender.com/api-docs/openapi.yaml → raw OpenAPI 3.0 spec
+```
 
 ---
 

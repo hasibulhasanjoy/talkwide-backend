@@ -11,6 +11,7 @@ import { globalErrorHandler } from "./middlewares/error.middleware.js";
 import sanitizeMiddleware from "./middlewares/sanitize.middleware.js";
 import commentRouter from "./routes/comment.route.js";
 import communityRouter from "./routes/community.route.js";
+import docsRouter from "./routes/docs.route.js";
 import oauthRouter from "./routes/oauth.route.js";
 import postRouter from "./routes/post.route.js";
 import searchRouter from "./routes/search.route.js";
@@ -88,6 +89,9 @@ app.use("/api/posts", postRouter);
 app.use("/api/comments", commentRouter);
 app.use("/api/communities", communityRouter);
 app.use("/api/search", searchRouter);
+
+// Interactive API documentation (Redoc UI + raw OpenAPI 3.0 spec)
+app.use("/api-docs", docsRouter);
 
 app.use((req, _res, next) => {
   next(new AppError(`Cannot find ${req.originalUrl} on this server`, 404));

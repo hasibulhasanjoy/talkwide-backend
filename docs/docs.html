@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Talkwide API Reference</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Roboto:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+    This page renders ./openapi.yaml with Redoc. Keep this file and
+    openapi.yaml in the same folder (e.g. serve both from GitHub Pages,
+    or run `npx serve` locally). Opening it directly via file:// will
+    NOT work in most browsers because fetching a local YAML file is
+    blocked by CORS — serve it over http(s) instead.
+  -->
+    <redoc
+      spec-url="./openapi.yaml"
+      theme='{
+    "colors": { "primary": { "main": "#2563eb" } },
+    "typography": {
+      "fontFamily": "Roboto, sans-serif",
+      "headings": { "fontFamily": "Montserrat, sans-serif" }
+    }
+  }'
+    ></redoc>
+    <script src="https://cdn.jsdelivr.net/npm/redoc@2.1.5/bundles/redoc.standalone.js"></script>
+  </body>
+</html>

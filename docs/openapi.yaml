@@ -1,0 +1,1254 @@
+openapi: 3.0.3
+info:
+  title: Talkwide API
+  version: "1.0.0"
+  description: >
+    Talkwide is a Reddit-style social discussion platform backend. It supports
+    multi-format posts (text, link, image), nested comment threads, community
+    spaces with role-based moderation, a time-decay "hot" feed, atomic voting
+    with karma tracking, and unified search — with dual authentication
+    (local JWT + Google OAuth 2.0).
+
+
+    ### Response envelope
+
+    Every successful response is JSON shaped as:
+
+    ```json
+
+    { "status": "success", "data": { } }
+
+    ```
+
+    (Some auth endpoints also include a top-level `token` and/or `message`
+    alongside `status`.)
+
+
+    Every error response is:
+
+    ```json
+
+    { "status": "fail", "message": "Human readable message" }
+
+    ```
+
+    `status` is `"fail"` for 4xx client errors and `"internal server error"`
+    for unhandled 5xx errors.
+
+
+    ### Pagination
+
+    List endpoints that paginate return:
+
+    ```json
+
+    {
+
+      "status": "success",
+
+      "data": {
+
+        "posts": [ ],
+
+        "pagination": { "page": 1, "limit": 20, "total": 134, "totalPages": 7 }
+
+      }
+
+    }
+
+    ```
+
+    (The paginated array key varies by endpoint — `posts`, `comments`,
+    `members`, etc.)
+
+
+    ### Authentication
+
+    Send `Authorization: Bearer <token>` on any endpoint marked 🔒 **Private**.
+    Endpoints marked **Public\*** accept an optional token — if present and
+    valid, the response is enriched with viewer-specific fields such as
+    `userVote` / `isSaved`.
+  contact:
+    name: Hasibul Hasan
+    url: https://github.com/hasibulhasanjoy/talkwide
+  license:
+    name: ISC
+
+servers:
+  - url: https://talkwide-api.onrender.com
+    description: Live deployment (Render free tier — first request may take 30-60s to wake)
+  - url: http://localhost:5500
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Signup, email verification, login, password reset
+  - name: OAuth
+    description: Google OAuth 2.0 (redirect flow + direct ID-token flow)
+  - name: Users
+    description: Profile management and per-user engagement history
+  - name: Posts
+    description: Post CRUD, feed ranking, voting, saving
+  - name: Comments
+    description: Nested comment threads, replies, voting, pinning
+  - name: Communities
+    description: Community CRUD, membership, roles, moderation
+  - name: Search
+    description: Unified user + community search
+
+security: []
+
+paths:
+  # ---------------------------------------------------------------- Auth
+  /api/users/signup:
+    post:
+      tags: [Auth]
+      summary: Register a new account
+      description: >
+        Stages the signup (hashes the password, stores it as a `PendingUser`)
+        and emails a verification link. No `User` document exists yet —
+        the account is only created once the link is confirmed via
+        `PATCH /api/users/verify-email/{token}`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignUpRequest" }
+            example:
+              username: hasib_dev
+              displayName: Hasibul Hasan
+              email: hasib@example.com
+              password: "Str0ng!Pass"
+              confirmPassword: "Str0ng!Pass"
+      responses:
+        "202":
+          description: Verification email dispatched
+          content:
+            application/json:
+              example:
+                status: success
+                message: Verification email sent. Please verify your email to complete registration.
+                data:
+                  user:
+                    { username: hasib_dev, displayName: Hasibul Hasan, email: hasib@example.com }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /api/users/verify-email/{token}:
+    patch:
+      tags: [Auth]
+      summary: Verify email and activate the account
+      description: Promotes the `PendingUser` into a real `User`, issues a JWT, and sends a welcome email.
+      parameters:
+        - $ref: "#/components/parameters/RawToken"
+      responses:
+        "201":
+          description: Account created and verified
+          content:
+            application/json:
+              example:
+                status: success
+                token: eyJhbGciOiJIUzI1NiIs...
+                message: Email verified successfully. Welcome to Talkwide!
+                data:
+                  user:
+                    {
+                      username: hasib_dev,
+                      displayName: Hasibul Hasan,
+                      email: hasib@example.com,
+                      emailVerifiedAt: "2026-09-26T10:00:00.000Z",
+                    }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /api/users/resend-verification-email:
+    post:
+      tags: [Auth]
+      summary: Resend a fresh verification link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties: { email: { type: string, format: email } }
+      responses:
+        "200":
+          description: A new verification email was sent
+          content:
+            application/json:
+              example:
+                { status: success, message: "Verification email sent. Please check your inbox." }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/users/login:
+    post:
+      tags: [Auth]
+      summary: Log in with username or email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+            example: { email: hasib@example.com, password: "Str0ng!Pass" }
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              example:
+                status: success
+                token: eyJhbGciOiJIUzI1NiIs...
+                data: { username: hasib_dev, displayName: Hasibul Hasan, email: hasib@example.com }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/users/forget-password:
+    post:
+      tags: [Auth]
+      summary: Request a password-reset email
+      description: Reset token is SHA-256 hashed before storage and expires after 10 minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties: { email: { type: string, format: email } }
+      responses:
+        "200":
+          description: Reset email dispatched (if the address exists)
+          content:
+            application/json:
+              example: { status: success, message: "Password reset token sent to email." }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/users/reset-password/{token}:
+    patch:
+      tags: [Auth]
+      summary: Set a new password using a reset token
+      parameters:
+        - $ref: "#/components/parameters/RawToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasswordConfirmPair" }
+      responses:
+        "200":
+          description: Password changed, new JWT issued
+          content:
+            application/json:
+              example:
+                {
+                  status: success,
+                  token: eyJhbGciOiJIUzI1NiIs...,
+                  message: "password changed successfully",
+                }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /api/users/change-password:
+    patch:
+      tags: [Auth]
+      summary: Change password (authenticated)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oldPassword, newPassword, confirmPassword]
+              properties:
+                oldPassword: { type: string }
+                newPassword: { type: string }
+                confirmPassword: { type: string }
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              example:
+                {
+                  status: success,
+                  token: eyJhbGciOiJIUzI1NiIs...,
+                  message: "password changed successfully",
+                }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # ---------------------------------------------------------------- OAuth
+  /api/auth/google:
+    get:
+      tags: [OAuth]
+      summary: Start the Google OAuth redirect flow
+      description: Redirects the browser to Google's consent screen. Intended for server-rendered / redirect-based clients.
+      responses:
+        "302": { description: "Redirect to Google's OAuth consent screen" }
+
+  /api/auth/google/callback:
+    get:
+      tags: [OAuth]
+      summary: Google OAuth callback
+      description: Google redirects here after consent. On success, redirects to `FRONTEND_URL/auth/google/callback` with `token`, `username`, `displayName`, `email` as query params.
+      responses:
+        "302":
+          {
+            description: "Redirect to the frontend with auth data, or to /login?error=authentication_failed on failure",
+          }
+
+  /api/auth/google/failure:
+    get:
+      tags: [OAuth]
+      summary: OAuth failure redirect target
+      responses:
+        "302": { description: "Redirect to FRONTEND_URL/login?error=authentication_failed" }
+
+  /api/auth/google/token:
+    post:
+      tags: [OAuth]
+      summary: Verify a Google ID token (mobile / SPA clients)
+      description: >
+        Verifies a client-obtained Google ID token directly (no redirect).
+        Creates the user on first sign-in, or links `googleId` to an existing
+        Google-provider account. Returns 409 if the email already belongs to
+        a local-password account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idToken]
+              properties:
+                {
+                  idToken:
+                    { type: string, description: "Google-issued ID token from the client SDK" },
+                }
+      responses:
+        "200":
+          description: Existing user signed in
+          content:
+            application/json:
+              example:
+                {
+                  status: success,
+                  token: eyJhbGciOiJIUzI1NiIs...,
+                  data:
+                    {
+                      username: hasib_dev,
+                      displayName: Hasibul Hasan,
+                      email: hasib@example.com,
+                      avatarUrl: null,
+                    },
+                }
+        "201":
+          description: New user created via Google
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  # ---------------------------------------------------------------- Users
+  /api/users/me/profile:
+    get:
+      tags: [Users]
+      summary: Get the authenticated user's own profile
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              example:
+                {
+                  status: success,
+                  data:
+                    {
+                      user:
+                        {
+                          _id: "652f1c...",
+                          username: hasib_dev,
+                          displayName: Hasibul Hasan,
+                          email: hasib@example.com,
+                          role: user,
+                          karma: 42,
+                          authProvider: local,
+                          createdAt: "2026-01-01T00:00:00.000Z",
+                        },
+                    },
+                }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Users]
+      summary: Update own profile
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProfileRequest" }
+      responses:
+        "200": { description: Updated profile }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /api/users/me/saved:
+    get:
+      tags: [Users]
+      summary: List the authenticated user's saved posts
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200": { $ref: "#/components/responses/PostListOK" }
+
+  /api/users/me/upvoted:
+    get:
+      tags: [Users]
+      summary: List posts the authenticated user has upvoted
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200": { $ref: "#/components/responses/PostListOK" }
+
+  /api/users/me/downvoted:
+    get:
+      tags: [Users]
+      summary: List posts the authenticated user has downvoted
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200": { $ref: "#/components/responses/PostListOK" }
+
+  /api/users/{username}:
+    get:
+      tags: [Users]
+      summary: Get a public user profile
+      description: "Public\u2020 — accepts an optional bearer token to include `isOwnProfile`."
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              example:
+                {
+                  status: success,
+                  data:
+                    {
+                      user:
+                        {
+                          username: hasib_dev,
+                          displayName: Hasibul Hasan,
+                          role: user,
+                          karma: 42,
+                          authProvider: local,
+                        },
+                      isOwnProfile: false,
+                    },
+                }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/users/{username}/posts:
+    get:
+      tags: [Users]
+      summary: List a user's posts
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200": { $ref: "#/components/responses/PostListOK" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- Posts
+  /api/posts:
+    post:
+      tags: [Posts]
+      summary: Create a post (text, link, or image)
+      description: >
+        `multipart/form-data` when `type` is `image` (field name `image`,
+        max 5MB, JPEG/PNG/WEBP/GIF); otherwise plain JSON works too. Posting
+        into a `community` requires membership.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePostRequest" }
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/CreatePostRequest"
+                - type: object
+                  properties: { image: { type: string, format: binary } }
+      responses:
+        "201":
+          description: Post created
+          content:
+            application/json:
+              example:
+                {
+                  status: success,
+                  data:
+                    {
+                      post:
+                        {
+                          _id: "66f1...",
+                          title: "Hello Talkwide",
+                          type: text,
+                          content: "My first post",
+                          score: 0,
+                          commentCount: 0,
+                          author: { username: hasib_dev, displayName: Hasibul Hasan },
+                        },
+                    },
+                }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    get:
+      tags: [Posts]
+      summary: Get the ranked feed
+      description: "Public\u2020 — `hot` uses time-decay score, `top` respects `time`, `new` is chronological."
+      parameters:
+        - name: sort
+          in: query
+          schema: { type: string, enum: [hot, new, top], default: hot }
+        - name: time
+          in: query
+          description: Only applies when `sort=top`
+          schema: { type: string, enum: [hour, day, week, month, year, all], default: day }
+        - name: community
+          in: query
+          schema: { type: string, description: "24-char community ObjectId" }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200": { $ref: "#/components/responses/PostListOK" }
+
+  /api/posts/{id}:
+    get:
+      tags: [Posts]
+      summary: Get a single post by ID
+      description: "Public\u2020 — includes `userVote`/`isSaved` when authenticated."
+      parameters: [{ $ref: "#/components/parameters/PostId" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              example:
+                {
+                  status: success,
+                  data:
+                    {
+                      post:
+                        {
+                          _id: "66f1...",
+                          title: "Hello Talkwide",
+                          type: text,
+                          score: 12,
+                          userVote: upvote,
+                          isSaved: false,
+                        },
+                    },
+                }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Posts]
+      summary: Update a post's title/content (author only)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/PostId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePostRequest" }
+      responses:
+        "200": { description: Updated post }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Posts]
+      summary: Soft-delete a post
+      description: Allowed for the author, a site admin/moderator, or a community owner/admin/moderator of the post's community.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/PostId" }]
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              example: { status: success, message: "Post deleted successfully" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/posts/{id}/vote:
+    post:
+      tags: [Posts]
+      summary: Upvote, downvote, or remove a vote on a post
+      description: Cannot vote on your own post. Re-issuing the same vote is a no-op. Author karma is adjusted atomically.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/PostId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VoteRequest" }
+      responses:
+        "200":
+          description: Vote applied
+          content:
+            application/json:
+              example:
+                {
+                  status: success,
+                  data: { score: 13, upvotes: 14, downvotes: 1, userVote: upvote },
+                }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/posts/{id}/save:
+    post:
+      tags: [Posts]
+      summary: Toggle bookmarking a post
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/PostId" }]
+      responses:
+        "200":
+          description: Toggled
+          content:
+            application/json:
+              example: { status: success, data: { isSaved: true } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/posts/{id}/lock:
+    patch:
+      tags: [Posts]
+      summary: Lock/unlock comments on a post (author only)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/PostId" }]
+      responses:
+        "200":
+          description: Toggled
+          content:
+            application/json:
+              example: { status: success, data: { isLocked: true } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/posts/{postId}/comments:
+    post:
+      tags: [Comments]
+      summary: Create a top-level comment on a post
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/PostIdInPath" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommentContent" }
+      responses:
+        "201": { description: Comment created }
+        "403": { description: "Comments are turned off for this post" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    get:
+      tags: [Comments]
+      summary: List a post's comment tree
+      description: "Public\u2020 — returns a paginated, nested tree (pinned first, then `sort`)."
+      parameters:
+        - $ref: "#/components/parameters/PostIdInPath"
+        - name: sort
+          in: query
+          schema: { type: string, enum: [popular, new], default: popular }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              example:
+                {
+                  status: success,
+                  data:
+                    {
+                      comments:
+                        [{ _id: "c1", content: "Great post!", score: 5, depth: 0, replies: [] }],
+                      pagination: { page: 1, limit: 20, total: 3, totalPages: 1 },
+                    },
+                }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- Comments (mirrored under /api/comments)
+  /api/comments/{id}/replies:
+    post:
+      tags: [Comments]
+      summary: Reply to an existing comment (unlimited nesting)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommentId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommentContent" }
+      responses:
+        "201": { description: Reply created }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/comments/{id}/vote:
+    post:
+      tags: [Comments]
+      summary: Upvote, downvote, or remove a vote on a comment
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommentId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VoteRequest" }
+      responses:
+        "200":
+          description: Vote applied
+          content:
+            application/json:
+              example:
+                { status: success, data: { score: 4, upvotes: 5, downvotes: 1, userVote: upvote } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/comments/{id}/pin:
+    patch:
+      tags: [Comments]
+      summary: Pin/unpin a comment (post author only)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommentId" }]
+      responses:
+        "200":
+          description: Toggled
+          content:
+            application/json:
+              example: { status: success, data: { isPinned: true } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/comments/{id}:
+    patch:
+      tags: [Comments]
+      summary: Edit a comment (author only)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommentId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommentContent" }
+      responses:
+        "200": { description: "Updated comment, sets isEdited to true" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Comments]
+      summary: Delete a comment (cascades to all replies)
+      description: Allowed for the author, or a site admin/moderator.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommentId" }]
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              example:
+                {
+                  status: success,
+                  message: "Comment deleted successfully",
+                  data: { deletedCount: 4 },
+                }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- Communities
+  /api/communities:
+    post:
+      tags: [Communities]
+      summary: Create a community (creator becomes owner)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 3, maxLength: 50, pattern: "^[a-zA-Z0-9_]+$" }
+                description: { type: string, maxLength: 500 }
+      responses:
+        "201": { description: Community created }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /api/communities/{id}:
+    get:
+      tags: [Communities]
+      summary: Get a community by ID
+      parameters: [{ $ref: "#/components/parameters/CommunityId" }]
+      responses:
+        "200": { description: OK }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Communities]
+      summary: Update a community (owner/admin only)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommunityId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 3, maxLength: 50 }
+                description: { type: string, maxLength: 500 }
+      responses:
+        "200": { description: Updated }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    delete:
+      tags: [Communities]
+      summary: Soft-delete a community (owner only)
+      description: Cascades to soft-delete all of the community's posts.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommunityId" }]
+      responses:
+        "200": { description: Deleted }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/communities/{id}/join:
+    post:
+      tags: [Communities]
+      summary: Join a community
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommunityId" }]
+      responses:
+        "200":
+          description: Joined
+          content:
+            application/json:
+              example: { status: success, data: { memberCount: 42 } }
+        "400": { description: "Already a member, or banned" }
+
+  /api/communities/{id}/leave:
+    post:
+      tags: [Communities]
+      summary: Leave a community
+      description: The owner cannot leave without transferring ownership first.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommunityId" }]
+      responses:
+        "200":
+          description: Left
+          content:
+            application/json:
+              example: { status: success, message: "You have left the community" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /api/communities/{id}/members:
+    get:
+      tags: [Communities]
+      summary: List community members
+      parameters:
+        - $ref: "#/components/parameters/CommunityId"
+        - name: role
+          in: query
+          schema: { type: string, enum: [member, moderator, admin, owner] }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200": { description: OK }
+
+  /api/communities/{id}/posts:
+    get:
+      tags: [Communities]
+      summary: List a community's posts
+      description: "Public\u2020"
+      parameters:
+        - $ref: "#/components/parameters/CommunityId"
+        - name: sort
+          in: query
+          schema: { type: string, enum: [new, top, hot], default: new }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200": { $ref: "#/components/responses/PostListOK" }
+
+  /api/communities/{id}/roles:
+    post:
+      tags: [Communities]
+      summary: Appoint a member as moderator or admin
+      description: Only the owner can appoint admins; admins and the owner can appoint moderators.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommunityId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, role]
+              properties:
+                userId: { type: string }
+                role: { type: string, enum: [moderator, admin] }
+      responses:
+        "200": { description: Role updated }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    delete:
+      tags: [Communities]
+      summary: Demote a moderator/admin back to member
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommunityId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties: { userId: { type: string } }
+      responses:
+        "200": { description: Demoted }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/communities/{id}/ban:
+    post:
+      tags: [Communities]
+      summary: Ban a user from the community
+      description: "Admins/moderators can ban; only the owner can ban an admin; admins+owner can ban a moderator."
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommunityId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [userId], properties: { userId: { type: string } } }
+      responses:
+        "200": { description: Banned }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/communities/{id}/unban:
+    post:
+      tags: [Communities]
+      summary: Unban a user
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/CommunityId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [userId], properties: { userId: { type: string } } }
+      responses:
+        "200": { description: Unbanned }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/communities/{id}/posts/{postId}:
+    delete:
+      tags: [Communities]
+      summary: Remove a post from the community (moderation)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/CommunityId"
+        - $ref: "#/components/parameters/PostIdInPath"
+      responses:
+        "200": { description: Removed }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- Search
+  /api/search:
+    get:
+      tags: [Search]
+      summary: Search users and/or communities
+      description: Case-insensitive; ranks exact match > prefix match > substring match, per field.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: type
+          in: query
+          schema: { type: string, enum: [user, community, all], default: all }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              example:
+                status: success
+                count: 2
+                results:
+                  - {
+                      username: hasib_dev,
+                      displayName: Hasibul Hasan,
+                      karma: 42,
+                      searchType: user,
+                      matchScore: 100,
+                    }
+                  - {
+                      name: TalkwideDevs,
+                      slug: talkwidedevs,
+                      memberCount: 12,
+                      searchType: community,
+                      matchScore: 80,
+                    }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    PostId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: 24-char post ObjectId
+    PostIdInPath:
+      name: postId
+      in: path
+      required: true
+      schema: { type: string }
+    CommentId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: 24-char comment ObjectId
+    CommunityId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: 24-char community ObjectId
+    RawToken:
+      name: token
+      in: path
+      required: true
+      schema: { type: string }
+      description: Raw (unhashed) token from the emailed link
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example: { status: fail, message: "Title must be at least 3 characters" }
+    Unauthorized:
+      description: Missing/invalid credentials or token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example: { status: fail, message: "invalid credential" }
+    Forbidden:
+      description: Authenticated but not permitted to perform this action
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example: { status: fail, message: "You are not authorized to perform this action" }
+    NotFound:
+      description: Resource does not exist (or is soft-deleted)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example: { status: fail, message: "Post not found" }
+    Conflict:
+      description: Duplicate / conflicting resource
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example: { status: fail, message: "user already exists with this email or username" }
+    PostListOK:
+      description: Paginated list of posts
+      content:
+        application/json:
+          example:
+            status: success
+            data:
+              posts:
+                - {
+                    _id: "66f1...",
+                    title: "Hello Talkwide",
+                    type: text,
+                    score: 12,
+                    commentCount: 3,
+                    author: { username: hasib_dev },
+                  }
+              pagination: { page: 1, limit: 20, total: 1, totalPages: 1 }
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        status: { type: string, example: fail }
+        message: { type: string }
+
+    SignUpRequest:
+      type: object
+      required: [username, displayName, email, password, confirmPassword]
+      properties:
+        username: { type: string, minLength: 3 }
+        displayName: { type: string }
+        email: { type: string, format: email }
+        password:
+          type: string
+          description: "Min 8 chars; must include uppercase, lowercase, number, special char"
+        confirmPassword: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [password]
+      description: Exactly one of `username` or `email` is required alongside `password`.
+      properties:
+        username: { type: string }
+        email: { type: string, format: email }
+        password: { type: string }
+
+    PasswordConfirmPair:
+      type: object
+      required: [password, confirmPassword]
+      properties:
+        password: { type: string }
+        confirmPassword: { type: string }
+
+    UpdateProfileRequest:
+      type: object
+      description: At least one field is required.
+      properties:
+        username: { type: string, minLength: 3 }
+        displayName: { type: string }
+        bio: { type: string, maxLength: 500 }
+        avatarUrl: { type: string, format: uri }
+
+    CreatePostRequest:
+      type: object
+      required: [title, type]
+      properties:
+        title: { type: string, minLength: 3, maxLength: 300 }
+        type: { type: string, enum: [text, link, image] }
+        content: { type: string, maxLength: 40000, description: "Used for text posts" }
+        linkUrl: { type: string, format: uri, description: "Required when type=link" }
+        community: { type: string, description: "24-char community ObjectId (optional)" }
+
+    UpdatePostRequest:
+      type: object
+      description: At least one field is required.
+      properties:
+        title: { type: string, minLength: 3, maxLength: 300 }
+        content: { type: string, maxLength: 40000 }
+
+    VoteRequest:
+      type: object
+      required: [voteType]
+      properties:
+        voteType: { type: string, enum: [upvote, downvote, remove] }
+
+    CommentContent:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1, maxLength: 10000 }
+
+    UserPublic:
+      type: object
+      properties:
+        _id: { type: string }
+        username: { type: string }
+        displayName: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        bio: { type: string, nullable: true }
+        role: { type: string, enum: [user, admin, moderator] }
+        karma: { type: integer }
+        authProvider: { type: string, enum: [local, google] }
+        createdAt: { type: string, format: date-time }
+
+    Post:
+      type: object
+      properties:
+        _id: { type: string }
+        author: { $ref: "#/components/schemas/UserPublic" }
+        community: { type: string, nullable: true }
+        title: { type: string }
+        content: { type: string, nullable: true }
+        type: { type: string, enum: [text, link, image] }
+        linkUrl: { type: string, nullable: true }
+        image:
+          type: object
+          nullable: true
+          properties: { url: { type: string }, publicId: { type: string } }
+        upvotes: { type: integer }
+        downvotes: { type: integer }
+        score: { type: integer }
+        commentCount: { type: integer }
+        isPinned: { type: boolean }
+        isLocked: { type: boolean }
+        userVote: { type: string, enum: [upvote, downvote, null], nullable: true }
+        isSaved: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Comment:
+      type: object
+      properties:
+        _id: { type: string }
+        post: { type: string }
+        author: { $ref: "#/components/schemas/UserPublic" }
+        parent: { type: string, nullable: true }
+        depth: { type: integer }
+        content: { type: string }
+        score: { type: integer }
+        replyCount: { type: integer }
+        isPinned: { type: boolean }
+        isEdited: { type: boolean }
+        userVote: { type: string, enum: [upvote, downvote, null], nullable: true }
+        replies:
+          type: array
+          items: { $ref: "#/components/schemas/Comment" }
+        createdAt: { type: string, format: date-time }
+
+    Community:
+      type: object
+      properties:
+        _id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        description: { type: string, nullable: true }
+        owner: { $ref: "#/components/schemas/UserPublic" }
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              user: { $ref: "#/components/schemas/UserPublic" }
+              role: { type: string, enum: [member, moderator, admin, owner] }
+              joinedAt: { type: string, format: date-time }
+        memberCount: { type: integer }
+        postCount: { type: integer }
+        createdAt: { type: string, format: date-time }
