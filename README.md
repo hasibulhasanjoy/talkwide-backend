@@ -76,6 +76,7 @@ curl "https://talkwide-api.onrender.com/api/posts?sort=hot&limit=5"
 - **Unified Aggregation Search**: A single endpoint resolves users and communities via parallel aggregation pipelines with case-insensitive server-side matching.
 - **Automated Data Hygiene**: Auto-expiring password reset tokens and pending email verifications backed by MongoDB TTL indexes and SHA-256 cryptographic hashing.
 - **Layered Error Handling**: Centralized error interceptor mapping Mongoose CastErrors, duplicate key violations (`11000`), JWT invalidations, and Zod formatting errors into normalized JSON responses.
+- **Hardened HTTP Surface**: Security headers (Helmet), per-route rate limiting, NoSQL operator injection sanitization, HTTP parameter pollution (HPP) protection, and strict body size caps on every incoming request.
 
 ---
 
@@ -88,9 +89,12 @@ Talkwide adheres to **Layered Clean Architecture** principles, enforcing separat
                                 │
 ┌───────────────────────────────▼───────────────────────────────────┐
 │                      MIDDLEWARE PIPELINE                          │
-│  • CORS & Morgan Logging                                          │
+│  • Helmet Security Headers & CORS Allowlist                       │
+│  • Rate Limiting (Global + Stricter Auth Buckets)                 │
+│  • NoSQL Injection Sanitizer & HPP Protection                     │
+│  • Morgan Logging (dev: colored, prod: standard)                  │
 │  • JWT Authentication (authenticateUser / optionalAuth)           │
-│  • Multer Memory File Buffer & MIME Filter                        │
+│  • Multer Memory File Buffer & MIME Filter (5MB cap)              │
 │  • Zod Schema Validation & Error Transformation                   │
 └───────────────────────────────┬───────────────────────────────────┘
                                 │
@@ -124,12 +128,15 @@ Talkwide adheres to **Layered Clean Architecture** principles, enforcing separat
 ### 1. Authentication & Security
 
 - **Local Authentication**: User registration and login secured with bcrypt (12 salt rounds) and signed JSON Web Tokens.
-- **Email Verification**: New signups receive a hashed verification token; accounts are created as *pending users* until the emailed link is confirmed, with a resend endpoint for expired tokens.
+- **Email Verification**: New signups receive a hashed verification token; accounts are created as _pending users_ until the emailed link is confirmed, with a resend endpoint for expired tokens.
 - **Google OAuth 2.0 Integration**:
   - Web OAuth flow via `passport-google-oauth20` with frontend callback redirection.
   - Direct ID token verification (`POST /api/auth/google/token`) for mobile/SPA clients using `google-auth-library`.
 - **Account Conflict Protection**: Prevents account takeover by disallowing OAuth creation if the email already exists with a local password account.
 - **Password Reset Flow**: Cryptographically secure SHA-256 hashed reset tokens stored in MongoDB with a 10-minute TTL index, accompanied by automated HTML transactional emails.
+- **HTTP Hardening**: `helmet` sets security headers (HSTS, X-Frame-Options, no-sniff, etc.); CORS is restricted to the frontend origins listed in `FRONTEND_URL` (comma-separated for staging + production), while origin-less requests (curl, mobile apps, health checks) remain allowed.
+- **Rate Limiting**: Global limiter of 300 requests / 15 min per IP across `/api`, with a stricter 20 requests / 15 min bucket on `/api/auth` to blunt brute-force attacks on login and OAuth token flows. `trust proxy` is enabled so real client IPs are resolved behind Render/Nginx.
+- **Injection & Pollution Protection**: Custom sanitizer middleware strips MongoDB operator keys (`$gt`, `$ne`, ...) from body, params, and query (works on Express 5, unlike `express-mongo-sanitize`); `hpp` collapses duplicate query parameters; JSON and urlencoded bodies are capped at 10 kb.
 
 ### 2. Multi-Type Post Management
 
@@ -236,19 +243,19 @@ Talkwide adheres to **Layered Clean Architecture** principles, enforcing separat
 
 ### Auth & Account Routes
 
-| Method  | Endpoint                               | Access | Description                                         |
-| :------ | :------------------------------------- | :----- | :-------------------------------------------------- |
-| `POST`  | `/api/users/signup`                    | Public | Register new user (creates pending user + email)    |
-| `PATCH` | `/api/users/verify-email/:token`       | Public | Activate account via emailed verification token     |
-| `POST`  | `/api/users/resend-verification-email` | Public | Re-send verification email for a pending account    |
-| `POST`  | `/api/users/login`                     | Public | Authenticate user & return JWT token                |
-| `POST`  | `/api/users/forget-password`           | Public | Send SHA-256 hashed password reset link via email   |
-| `PATCH` | `/api/users/reset-password/:token`     | Public | Reset password using valid reset token              |
+| Method  | Endpoint                               | Access  | Description                                         |
+| :------ | :------------------------------------- | :------ | :-------------------------------------------------- |
+| `POST`  | `/api/users/signup`                    | Public  | Register new user (creates pending user + email)    |
+| `PATCH` | `/api/users/verify-email/:token`       | Public  | Activate account via emailed verification token     |
+| `POST`  | `/api/users/resend-verification-email` | Public  | Re-send verification email for a pending account    |
+| `POST`  | `/api/users/login`                     | Public  | Authenticate user & return JWT token                |
+| `POST`  | `/api/users/forget-password`           | Public  | Send SHA-256 hashed password reset link via email   |
+| `PATCH` | `/api/users/reset-password/:token`     | Public  | Reset password using valid reset token              |
 | `PATCH` | `/api/users/change-password`           | Private | Change account password (requires current password) |
-| `GET`   | `/api/auth/google`                     | Public | Initiate Google OAuth 2.0 redirect flow             |
-| `GET`   | `/api/auth/google/callback`            | Public | Google OAuth callback URL (issues JWT & redirects)  |
-| `GET`   | `/api/auth/google/failure`             | Public | OAuth failure redirect handler                      |
-| `POST`  | `/api/auth/google/token`               | Public | Verify Google ID token from mobile/SPA client       |
+| `GET`   | `/api/auth/google`                     | Public  | Initiate Google OAuth 2.0 redirect flow             |
+| `GET`   | `/api/auth/google/callback`            | Public  | Google OAuth callback URL (issues JWT & redirects)  |
+| `GET`   | `/api/auth/google/failure`             | Public  | OAuth failure redirect handler                      |
+| `POST`  | `/api/auth/google/token`               | Public  | Verify Google ID token from mobile/SPA client       |
 
 ### Post & Feed Routes
 
@@ -267,15 +274,15 @@ _\* Accepts optional JWT to populate `userVote` and `isSaved` fields for the aut
 
 ### Comment Routes
 
-| Method   | Endpoint                      | Access  | Description                                              |
-| :------- | :---------------------------- | :------ | :------------------------------------------------------- |
-| `POST`   | `/api/posts/:postId/comments` | Private | Create a top-level comment on a post                     |
-| `GET`    | `/api/posts/:postId/comments` | Public* | List the full sorted comment tree for a post             |
-| `POST`   | `/api/comments/:id/replies`   | Private | Reply to an existing comment (unlimited nesting)         |
-| `POST`   | `/api/comments/:id/vote`      | Private | Vote on a comment (`upvote`, `downvote`, or `remove`)    |
-| `PATCH`  | `/api/comments/:id/pin`       | Private | Toggle pin on a comment (Post author only)               |
-| `PATCH`  | `/api/comments/:id`           | Private | Update comment content (Author only, flags `isEdited`)   |
-| `DELETE` | `/api/comments/:id`           | Private | Soft delete comment (Author or Admin/Moderator)          |
+| Method   | Endpoint                      | Access  | Description                                            |
+| :------- | :---------------------------- | :------ | :----------------------------------------------------- |
+| `POST`   | `/api/posts/:postId/comments` | Private | Create a top-level comment on a post                   |
+| `GET`    | `/api/posts/:postId/comments` | Public* | List the full sorted comment tree for a post           |
+| `POST`   | `/api/comments/:id/replies`   | Private | Reply to an existing comment (unlimited nesting)       |
+| `POST`   | `/api/comments/:id/vote`      | Private | Vote on a comment (`upvote`, `downvote`, or `remove`)  |
+| `PATCH`  | `/api/comments/:id/pin`       | Private | Toggle pin on a comment (Post author only)             |
+| `PATCH`  | `/api/comments/:id`           | Private | Update comment content (Author only, flags `isEdited`) |
+| `DELETE` | `/api/comments/:id`           | Private | Soft delete comment (Author or Admin/Moderator)        |
 
 _\* Comment create/list routes are also mirrored under the `/api/comments` router prefix._
 
@@ -305,15 +312,15 @@ _\* Comment create/list routes are also mirrored under the `/api/comments` route
 
 ### User Profile & Engagement Routes
 
-| Method   | Endpoint                     | Access  | Description                                    |
-| :------- | :--------------------------- | :------ | :--------------------------------------------- |
-| `GET`    | `/api/users/me/profile`      | Private | Get the authenticated user's own profile       |
-| `PATCH`  | `/api/users/me/profile`      | Private | Update own profile (displayName, bio, avatar)  |
-| `GET`    | `/api/users/:username`       | Public* | Get a public user profile by username          |
-| `GET`    | `/api/users/:username/posts` | Public* | Get all posts created by a specific user       |
-| `GET`    | `/api/users/me/saved`        | Private | Get all saved posts for authenticated user     |
-| `GET`    | `/api/users/me/upvoted`      | Private | Get all upvoted posts for authenticated user   |
-| `GET`    | `/api/users/me/downvoted`    | Private | Get all downvoted posts for authenticated user |
+| Method  | Endpoint                     | Access  | Description                                    |
+| :------ | :--------------------------- | :------ | :--------------------------------------------- |
+| `GET`   | `/api/users/me/profile`      | Private | Get the authenticated user's own profile       |
+| `PATCH` | `/api/users/me/profile`      | Private | Update own profile (displayName, bio, avatar)  |
+| `GET`   | `/api/users/:username`       | Public* | Get a public user profile by username          |
+| `GET`   | `/api/users/:username/posts` | Public* | Get all posts created by a specific user       |
+| `GET`   | `/api/users/me/saved`        | Private | Get all saved posts for authenticated user     |
+| `GET`   | `/api/users/me/upvoted`      | Private | Get all upvoted posts for authenticated user   |
+| `GET`   | `/api/users/me/downvoted`    | Private | Get all downvoted posts for authenticated user |
 
 _\* Accepts optional JWT to enrich the response for the authenticated user._
 
@@ -331,6 +338,10 @@ _\* Accepts optional JWT to enrich the response for the authenticated user._
    Instead of writing uploaded files to temporary server disk space (which causes I/O latency and disk buildup on containerized environments like Docker or AWS ECS), files are buffered in RAM and streamed directly to Cloudinary.
 5. **Lean Queries with Selective Field Population**:
    All read queries utilize `.lean()` and select only essential fields (e.g. `username`, `displayName`, `avatarUrl`), reducing MongoDB memory footprint and JSON serialization overhead.
+6. **Why a Custom Sanitizer instead of `express-mongo-sanitize`?**
+   `express-mongo-sanitize` mutates `req.query`, which is a read-only getter in Express 5 and throws at runtime. The custom middleware rebuilds clean body/params/query objects instead, removing MongoDB operator keys (`$gt`, `$ne`, ...) without fighting the framework.
+7. **Layered Rate Limiting instead of a Single Bucket**:
+   A generous global limit (300 req / 15 min) keeps normal browsing frictionless, while a tight per-IP bucket on `/api/auth` (20 req / 15 min) makes credential stuffing and OAuth token brute-forcing impractical without penalizing legitimate traffic elsewhere.
 
 ---
 
@@ -367,16 +378,16 @@ npm start
 
 ### Environment Variables
 
-| Variable                 | Description                                    |
-| :----------------------- | :--------------------------------------------- |
-| `PORT`                   | Server port                                    |
-| `MONGO_URI`              | MongoDB connection string                      |
-| `JWT_SECRET_KEY`         | JWT signing secret                             |
-| `JWT_EXPIRES_IN`         | Token expiry (default: `7d`)                   |
-| `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USERNAME` / `EMAIL_PASSWORD` | SMTP server for transactional emails |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_CALLBACK_URL` | Google OAuth 2.0 credentials |
-| `FRONTEND_URL`           | Frontend base URL for OAuth redirects          |
-| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Cloudinary CDN credentials |
+| Variable                                                                 | Description                                                                                                                    |
+| :----------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                                                                   | Server port                                                                                                                    |
+| `MONGO_URI`                                                              | MongoDB connection string                                                                                                      |
+| `JWT_SECRET_KEY`                                                         | JWT signing secret                                                                                                             |
+| `JWT_EXPIRES_IN`                                                         | Token expiry (default: `7d`)                                                                                                   |
+| `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USERNAME` / `EMAIL_PASSWORD`        | SMTP server for transactional emails                                                                                           |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_CALLBACK_URL`      | Google OAuth 2.0 credentials                                                                                                   |
+| `FRONTEND_URL`                                                           | Frontend base URL for OAuth redirects and the CORS allowlist (comma-separated for multiple origins, e.g. staging + production) |
+| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Cloudinary CDN credentials                                                                                                     |
 
 ### Available Scripts
 
